@@ -28,7 +28,7 @@ defaults:
 paginate: 20
 
 #### Site
-title : wrfigthing(wery) blog
+title : wrfighting(wery) blog
 tagline: A programmer
 assets: /assets
 url:
