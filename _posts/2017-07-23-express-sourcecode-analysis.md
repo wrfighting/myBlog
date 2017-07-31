@@ -46,18 +46,18 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 
 我们现在创建一个简单的express应用。
 
-	```javascript
-	var express = require('express');
+```javascript
+var express = require('express');
 	
-	var app = express();
+var app = express();
 	
-	app.get('/', function(req, res){
-	  res.send('Hello World');
-	});
+app.get('/', function(req, res){
+  res.send('Hello World');
+});
 	
-	app.listen(3000);
-	console.log('Express started on port 3000')
-	```
+app.listen(3000);
+console.log('Express started on port 3000')
+```
 	
 当我们require('express')，实际上是require了`/lib/express`，这是express的主要入口。让我们进入`express.js`，看它做了什么。
 
