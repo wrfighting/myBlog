@@ -45,6 +45,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 ## 创建一个app
 
 我们现在创建一个简单的express应用。
+
 	```javascript
 	var express = require('express');
 	
@@ -59,6 +60,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 	```
 
 当我们require('express')，实际上是require了`/lib/express`，这是express的主要入口。让我们进入`express.js`，看它做了什么。
+
 	```javascript
 	var EventEmitter = require('events').EventEmitter;
 	var mixin = require('merge-descriptors');
@@ -75,6 +77,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 3. proto、Route、Router、req、res是各个文件导出的模块，这些模块都会被express.js用到。
 
 然后，我们来看express.js的核心部分，它是一个函数，它的内容如下。
+
 	```javascript
 	function createApplication() {
 	  var app = function(req, res, next) {
@@ -100,6 +103,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 这个函数是作为我们的入口点，所以每行代码我都进行了说明，这里我在补充几个重点。app = function(){} 这里可以看到它把app定义成了一个function，然后为这个function添加了很多属性方法。
 
 我们知道，在js中函数其实也是一种引用类型，它是可以随意添加属性方法的，为一个函数添加属性和方法后有什么特殊用法呢，我这里举个例子。
+
 	```javascript
 	var app = function() {}
 	app.a = '11';
@@ -119,6 +123,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 通过var app = express() 我们得到了这个app对象(就是createApplication函数返回的那个app)，这个app我们上面说过了，可以作为一个函数直接执行，同时也有了各种属性方法可以调用，然后我们就可以app.get设置路由了，其实还有app.use这些，各种各样的api去为我们express应用设置各种东西。
 
 重点来了，我们看app.listen这个函数的代码如下：
+
 	```javascript
 	app.listen = function listen() {
 	  var server = http.createServer(this);
