@@ -141,3 +141,43 @@ app.listen = function listen() {
 这样服务器就启动起来了，并且app.handle作为处理函数来处理每次请求。
 
 这里就迈出了epxress源码解析的第一步，后面我们会开始讲对app.handle这个每次请求来的时候调用的处理函数的分析，后面的角色比如Router和Route这些就开始粉墨登场了，let's go！
+
+## 挂载中间件
+
+### 理解中间件
+上面提到每次请求来了，我们要进行处理，但是这个处理的逻辑是谁定的呢？中间价扮演了重要的角色，简单来说，我们这样想，一条路上有很多关卡，这每个关卡就是一个中间件，请求就是一辆车，它要开到终点路上必须经过这些关卡（中间价），如果每个关卡都有过路费，这辆车必须要条件匹配的关卡我才给你过路费（对应于是否执行中间件的逻辑）。
+
+通过上面的那个简单举例，我们可以看出，中间件是串联的，一个接着一个，必须按顺序经过每一个中间价，但其实进不进去中间件执行，这个要看条件匹不匹配。这样子大家心里就有了个大概的流程了，下面我们开始细讲这个中间件。
+
+中间件这里为了帮助理解我们进行一下划分，我们按应用角度把它划分成两类，一种是普通的中间件，这种也可以理解为通用的中间件，比如说session中间件。一种是路由中间件，这种是比如说我定义一个api路径'/api/users'，然后调用这个api时，才会进到这个中间件执行对应逻辑。这是这两种中间件的区分标准吗，其实不是，正在的从express数据结构的角度更直观的看到两种中间件的区分，这个我们后面再说。
+
+接下来我们先介绍三个新角色router、layer、route，然后在讲这三个是什么关系，怎么联系起来的。
+
+### router
+router是express中的一个非常重要的数据结构，它是作为一个大容器存在的，里面顺序存放了各个layer，它的代码在`/lib/router/index.js`中，它是一个对象，拥有属性和方法，它的初始化代码如下。
+
+```javascript
+var proto = module.exports = function(options) {
+  var opts = options || {};
+
+  function router(req, res, next) {
+    router.handle(req, res, next);
+  }
+
+  // mixin Router class functions
+  setPrototypeOf(router, proto)
+
+  router.params = {};
+  router._params = [];
+  router.caseSensitive = opts.caseSensitive;  //是否启用区分大小写路由
+  router.mergeParams = opts.mergeParams;
+  router.strict = opts.strict;  //是否启用严格路由
+  router.stack = [];  //存放layer的数组
+
+  return router;
+};
+```
+
+这里的写法跟createApplication()一样的，就不说明了。router.handle我们后面在说明，其实是个分发请求的函数，跟app.handle类似。这里的stack是个重点，这是一个数组，里面将会存放layer。这里又出现了一个新的数据结构layer，下面我们先介绍layer。
+
+### layer
