@@ -59,7 +59,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 	```
 
 当我们require('express')，实际上是require了`/lib/express`，这是express的主要入口。让我们进入`express.js`，看它做了什么。
-
+	```javascript
 	var EventEmitter = require('events').EventEmitter;
 	var mixin = require('merge-descriptors');
 	var proto = require('./application');
@@ -67,7 +67,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 	var Router = require('./router');
 	var req = require('./request');
 	var res = require('./response');
-
+	```
 它require了各个模块，这里对各个模块做说明：
 
 1. EventEmitter 是一个对象，通过prototype可以得到events模块的所有方法，比如on、emit这些。
@@ -75,7 +75,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 3. proto、Route、Router、req、res是各个文件导出的模块，这些模块都会被express.js用到。
 
 然后，我们来看express.js的核心部分，它是一个函数，它的内容如下。
-
+	```javascript
 	function createApplication() {
 	  var app = function(req, res, next) {
 	    app.handle(req, res, next); //这个实际上是请求来了之后的触发函数
@@ -96,11 +96,11 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 	  app.init(); //初始化，这个方法是来自于application中定义的，主要执行一些默认设置
 	  return app;
 	}
-
+	```
 这个函数是作为我们的入口点，所以每行代码我都进行了说明，这里我在补充几个重点。app = function(){} 这里可以看到它把app定义成了一个function，然后为这个function添加了很多属性方法。
 
 我们知道，在js中函数其实也是一种引用类型，它是可以随意添加属性方法的，为一个函数添加属性和方法后有什么特殊用法呢，我这里举个例子。
-
+	```javascript
 	var app = function() {}
 	app.a = '11';
 	app.b = '22';
@@ -111,7 +111,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 	  a: '11'
 	  b: '22'
 	}
-
+	```
 上面例子的app可以作为一个函数直接执行app()，同时也可以用app.a这样得到它的属性。
 
 我们再回到上面express中的createApplication函数，这里它为什么这样写呢？我们用最简单的那个express例子来体会一下。
@@ -119,12 +119,12 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 通过var app = express() 我们得到了这个app对象(就是createApplication函数返回的那个app)，这个app我们上面说过了，可以作为一个函数直接执行，同时也有了各种属性方法可以调用，然后我们就可以app.get设置路由了，其实还有app.use这些，各种各样的api去为我们express应用设置各种东西。
 
 重点来了，我们看app.listen这个函数的代码如下：
-
+	```javascript
 	app.listen = function listen() {
 	  var server = http.createServer(this);
 	  return server.listen.apply(server, arguments);
 	};
-
+	```
 这里的this就是我们上面提到的那个app，刚才说了，它可以作为函数执行，所以当http.createServer时，它作为参数传了进去，它实际上是作为一个函数传进去的，就会被添加到这个服务器的request事件（可以查看nodejs api去查阅对应的http模块内容），这样的话，当每个请求来了，app函数就是处理函数了，它调用的是app.handle，这就是每个请求来了后会走的一个处理函数，你也可以把他看作一个请求看到我们服务器后的起跑线。
 
 有同学会问，那后面那行return server.listen.apply(server, arguments)的作用呢，这里上面那行代码得到的server是个http.Server的实例，可以调用listen方法"启动服务器"，通过apply（server, arguments），以server作为上下文，传入了app.listen传入的参数，作为server.listen的配置。
