@@ -58,7 +58,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 	app.listen(3000);
 	console.log('Express started on port 3000')
 	```
-
+	
 当我们require('express')，实际上是require了`/lib/express`，这是express的主要入口。让我们进入`express.js`，看它做了什么。
 
 	```javascript
@@ -70,6 +70,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 	var req = require('./request');
 	var res = require('./response');
 	```
+	
 它require了各个模块，这里对各个模块做说明：
 
 1. EventEmitter 是一个对象，通过prototype可以得到events模块的所有方法，比如on、emit这些。
@@ -100,6 +101,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 	  return app;
 	}
 	```
+	
 这个函数是作为我们的入口点，所以每行代码我都进行了说明，这里我在补充几个重点。app = function(){} 这里可以看到它把app定义成了一个function，然后为这个function添加了很多属性方法。
 
 我们知道，在js中函数其实也是一种引用类型，它是可以随意添加属性方法的，为一个函数添加属性和方法后有什么特殊用法呢，我这里举个例子。
@@ -116,6 +118,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 	  b: '22'
 	}
 	```
+	
 上面例子的app可以作为一个函数直接执行app()，同时也可以用app.a这样得到它的属性。
 
 我们再回到上面express中的createApplication函数，这里它为什么这样写呢？我们用最简单的那个express例子来体会一下。
@@ -130,6 +133,7 @@ express的源代码位于/lib文件夹下，结构如下图所示：
 	  return server.listen.apply(server, arguments);
 	};
 	```
+	
 这里的this就是我们上面提到的那个app，刚才说了，它可以作为函数执行，所以当http.createServer时，它作为参数传了进去，它实际上是作为一个函数传进去的，就会被添加到这个服务器的request事件（可以查看nodejs api去查阅对应的http模块内容），这样的话，当每个请求来了，app函数就是处理函数了，它调用的是app.handle，这就是每个请求来了后会走的一个处理函数，你也可以把他看作一个请求看到我们服务器后的起跑线。
 
 有同学会问，那后面那行return server.listen.apply(server, arguments)的作用呢，这里上面那行代码得到的server是个http.Server的实例，可以调用listen方法"启动服务器"，通过apply（server, arguments），以server作为上下文，传入了app.listen传入的参数，作为server.listen的配置。
