@@ -455,6 +455,7 @@ methods.forEach(function(method){
 
 其实一个express app最后的中间件关系图可以像下面的图所示。
 ![](http://otlcy9opw.bkt.clouddn.com/express-router1.png)
+
 这个图展示了一个express app常规的中间件结构，作为唯一实例Router，它的stack中有各个layer（中间件），有些路由中间件（layer.route不为undefined）有Route，对应的Route中的stack又有各个layer。
 
 这里也能看出请求来了后的中间件执行顺序，先注册的先执行（前提是匹配路径成功（路由中间件还要匹配方法））。
@@ -527,52 +528,53 @@ proto.handle = function handle(req, res, out) {
       }
 
       if (match !== true) {
+		//不匹配，回到while条件
         continue;
       }
 
       if (!route) {
-        // process non-route handlers normally
+        // 非路由中间件，回到while条件
         continue;
       }
 
       if (layerError) {
-        // routes do not match with a pending error
+        // layerError出现了，macth未匹配，回到while条件
         match = false;
         continue;
       }
 
       var method = req.method;
-      var has_method = route._handles_method(method);
+      var has_method = route._handles_method(method);  //这里验证方法是否路由可处理的
 
-      // build up automatic options response
+      // 处理method为options
       if (!has_method && method === 'OPTIONS') {
         appendMethods(options, route._options());
       }
 
-      // don't even bother matching route
+      // 方法不能处理就回到while条件
       if (!has_method && method !== 'HEAD') {
         match = false;
         continue;
       }
     }
 
-    // no match
+    // 都遍历完了，如果还是没有匹配的
     if (match !== true) {
       return done(layerError);
     }
 
-    // store route for dispatch on change
+    // 如果route ok（路由中间件），存到req.route里
     if (route) {
       req.route = route;
     }
 
-    // Capture one-time layer values
+    // 这儿我们拿到了匹配的layer了，这个mergeParams为true，如果path为/:id/a/:name这种，能把整个：后面的key给解析到params里，变成{id：'1',name:'wr'}
     req.params = self.mergeParams
       ? mergeParams(layer.params, parentParams)
       : layer.params;
     var layerPath = layer.path;
 
-    // this should be done for the layer
+    // 处理layer了
     self.process_params(layer, paramcalled, req, res, function (err) {   //基本是立即执行function的东西
       if (err) {
         return next(layerError || err);
@@ -589,30 +591,7 @@ proto.handle = function handle(req, res, out) {
   }
 
   function trim_prefix(layer, layerError, layerPath, path) {
-    if (layerPath.length !== 0) {
-      // Validate path breaks on a path separator
-      var c = path[layerPath.length]
-      if (c && c !== '/' && c !== '.') return next(layerError)
-
-      // Trim off the part of the url that matches the route
-      // middleware (.use stuff) needs to have the path stripped
-      debug('trim prefix (%s) from url %s', layerPath, req.url);
-      removed = layerPath;
-      req.url = protohost + req.url.substr(protohost.length + removed.length);
-
-      // Ensure leading slash
-      if (!protohost && req.url[0] !== '/') {
-        req.url = '/' + req.url;
-        slashAdded = true;
-      }
-
-      // Setup base URL (no trailing slash)
-      req.baseUrl = parentUrl + (removed[removed.length - 1] === '/'
-        ? removed.substring(0, removed.length - 1)
-        : removed);
-    }
-
-    debug('%s %s : %s', layer.name, layerPath, req.originalUrl);
+    //...一堆验证是否是合法的非路由中间件
 
     if (layerError) {
       layer.handle_error(layerError, req, res, next);
@@ -622,3 +601,10 @@ proto.handle = function handle(req, res, out) {
   }
 };
 ```
+
+以上就是执行函数的核心代码了，注释非常详细了，可以看出next在这里扮演了非常重要的作用，所以我们经常在handler里写的那个next，其实就是这里的那个next，相当于你调用了一次这个next，坐标到下个layer，开始继续遍历处理而已。
+
+这里还有一个点，可能比较迷惑，就是路由和非路由中间件的那个`layer.handle_request(req, res, next)`，这里我在上面给了注释说明了，就不在重复，这里如果看不懂的话，可能是因为你忘了定义路由中间件和非路由中间件的时候的代码处理，可以翻到前面去看一下，定义的时候针对这个`handle_request`就做了不同处理的，路由中间件简单来说就是把那个route拿到这个next里去执行了，因为route的stack也是数组里放了layer。
+
+## 总结
+以上整个express从定义到执行都讲完了，感觉还是比较详细了，其实还有些东西没讲，比如说初始化的时候express的一些设置，模板这些。这些其实很简单，没有啥逻辑性，如果有需要的话，有时间我再做补充。
