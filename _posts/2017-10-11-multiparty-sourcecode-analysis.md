@@ -231,3 +231,5 @@ Form.prototype.parse = function(req, cb) {
 };
 ```
 这个方法内容较多，我们应该带着最开始指出的思路去理解的话，就很好理解了，毕竟再多的操作其实主线也是按照那个思路走的。
+我们在使用parse的时候，会传入一个callback，有三个参数err，fileds解析出来的k-v，files解析出来的文件。当我们传入callback后，会设置
+我们在使用parse的时候，会传入一个callback，有三个参数err，fileds解析出来的k-v，files解析出来的文件。当我们传入callback
