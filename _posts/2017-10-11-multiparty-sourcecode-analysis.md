@@ -261,8 +261,8 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
   var i = 0;
   var len = buffer.length;
   var prevIndex = self.index;
-  var index = self.index;
-  var state = self.state;
+  var index = self.index;  //当前指标
+  var state = self.state;  //当前状态
   var lookbehind = self.lookbehind;
   var boundary = self.boundary;
   var boundaryChars = self.boundaryChars;
@@ -275,52 +275,52 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
   for (i = 0; i < len; i++) {
     c = buffer[i]; //拿到每一个字节
     switch (state) {
-      case START:
+      case START:  //开始状态
         index = 0;
         state = START_BOUNDARY;
         /* falls through */
-      case START_BOUNDARY:
+      case START_BOUNDARY:  //解析boundary的状态，读字符到这个状态里时，会一直读，直到读完boundary，进入下个数据的解析
         if (index === boundaryLength - 2 && c === HYPHEN) { //读到倒数两位的时候，有-符号，就是文件完全结束了  文件结束--boundary--
           index = 1;
           state = CLOSE_BOUNDARY; //去做一些收尾工作，调用回调
           break;
         } else if (index === boundaryLength - 2) { //回车就继续
-          if (c !== CR) return self.handleError(createError(400, 'Expected CR Received ' + c));
+          if (c !== CR) return self.handleError(createError(400, 'Expected CR Received ' + c)); //boundary后第一位不是\r解析错误
           index++;
           break;
-        } else if (index === boundaryLength - 1) { //回车后换行的话是fileds了
-          if (c !== LF) return self.handleError(createError(400, 'Expected LF Received ' + c));
-          index = 0;
-          self.onParsePartBegin();
-          state = HEADER_FIELD_START;
+        } else if (index === boundaryLength - 1) { //回车后换行的话是fileds了  最后一位应该是\n
+          if (c !== LF) return self.handleError(createError(400, 'Expected LF Received ' + c)); //不是的话解析错误
+          index = 0;   //已经是boundary\r\n后，重新开始新的一项了
+          self.onParsePartBegin();  //准备工作，主要是重置一些变量
+          state = HEADER_FIELD_START;  //开始解析字段field
           break;
         }
 
-        if (c !== boundary[index+2]) index = -2;
-        if (c === boundary[index+2]) index++;
+        if (c !== boundary[index+2]) index = -2;  //跳过\r\n，因为boundary设置的\r\n--，这算是一种重置手段
+        if (c === boundary[index+2]) index++;  //这种就是正常情况，挨着去读字符，指标也跟着往后走，直到读到倒数两位
         break;
-      case HEADER_FIELD_START:
+      case HEADER_FIELD_START:  //开始header的field
         state = HEADER_FIELD;
-        self.headerFieldMark = i;
+        self.headerFieldMark = i;  //记录开始解析header的field时的i坐标
         index = 0;
         /* falls through */
-      case HEADER_FIELD:
+      case HEADER_FIELD:  //header field解析
         if (c === CR) { //又遇到回车该fields ok了
           self.headerFieldMark = null;
           state = HEADERS_ALMOST_DONE;
           break;
         }
 
-        index++;
-        if (c === HYPHEN) break;
+        index++; //指标+1
+        if (c === HYPHEN) break; //如果字符是'-',例如Content-Diposition:中间的'-',则继续检测下一个字符的状态
 
         if (c === COLON) { //冒号 这个是解析fileds了 放到header里的
-          if (index === 1) {
+          if (index === 1) {  //直接就是冒号，则没有field的key
             // empty header field
             self.handleError(createError(400, 'Empty header field'));
             return;
           }
-          self.onParseHeaderField(buffer.slice(self.headerFieldMark, i)); //fileds的key
+          self.onParseHeaderField(buffer.slice(self.headerFieldMark, i)); //fileds的key，通过刚才的标记和现在的i，拿出key值
           self.headerFieldMark = null;
           state = HEADER_VALUE_START;
           break;
@@ -332,23 +332,23 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
           return;
         }
         break;
-      case HEADER_VALUE_START:
+      case HEADER_VALUE_START:  //开始解析fields的value
         if (c === SPACE) break;
 
-        self.headerValueMark = i;
+        self.headerValueMark = i;  //标记
         state = HEADER_VALUE;
         /* falls through */
-      case HEADER_VALUE:
-        if (c === CR) { //回车 这个filed结束了，又是一行
+      case HEADER_VALUE:  //解析fields的value
+        if (c === CR) { //回车 这个filed结束了，又是一行新的块
           self.onParseHeaderValue(buffer.slice(self.headerValueMark, i)); //把fileds的value搞出来
           self.headerValueMark = null;
-          self.onParseHeaderEnd();
+          self.onParseHeaderEnd(); //这是一个处理操作，分情况有三种处理，后面进行解释
           state = HEADER_VALUE_ALMOST_DONE;
         }
         break;
       case HEADER_VALUE_ALMOST_DONE: //fileds value 遇到新的换行空白行，开始新的fileds
-        if (c !== LF) return self.handleError(createError(400, 'Expected LF Received ' + c));
-        state = HEADER_FIELD_START;
+        if (c !== LF) return self.handleError(createError(400, 'Expected LF Received ' + c)); //刚才是\r，那这里一定要是\n
+        state = HEADER_FIELD_START; 
         break;
       case HEADERS_ALMOST_DONE: //换行结束该fileds
         if (c !== LF) return self.handleError(createError(400, 'Expected LF Received ' + c));
@@ -356,17 +356,17 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
         if (err) return self.handleError(err);
         state = PART_DATA_START;
         break;
-      case PART_DATA_START:
+      case PART_DATA_START: //开始解析文件部分
         state = PART_DATA;
         self.partDataMark = i; //记录下文件开始部分
         /* falls through */
-      case PART_DATA:
-        prevIndex = index;
+      case PART_DATA:  //解析文件部分
+        prevIndex = index;  //前置index
 
         if (index === 0) {
-          // boyer-moore derrived algorithm to safely skip non-boundary data
-          i += boundaryEnd; //跳过boundary结尾
-          while (i < bufferLength && !(buffer[i] in boundaryChars)) {
+          //解析的时候不逐个解析，每次跳boundary的长度，因为只要拿到这个数据块的起止部分的坐标就可以了
+          i += boundaryEnd; //跳过boundary-1,保证不跳出
+          while (i < bufferLength && !(buffer[i] in boundaryChars)) { //还没跳完，一直没跳到这个数据块结尾
             i += boundaryLength;
           }
           i -= boundaryEnd;
@@ -374,7 +374,7 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
         }
 
         if (index < boundaryLength) {
-          if (boundary[index] === c) { //部分文件结束了
+          if (boundary[index] === c) { //该部分文件结束了
             if (index === 0) {
               self.onParsePartData(buffer.slice(self.partDataMark, i)); //开始写
               self.partDataMark = null;
@@ -383,12 +383,12 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
           } else {
             index = 0;
           }
-        } else if (index === boundaryLength) {
+        } else if (index === boundaryLength) { //解析到boundary倒数第二个字符
           index++;
           if (c === CR) {
             // CR = part boundary
             self.partBoundaryFlag = true;
-          } else if (c === HYPHEN) {
+          } else if (c === HYPHEN) { //为-结束
             index = 1;
             state = CLOSE_BOUNDARY;
             break;
@@ -398,7 +398,7 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
         } else if (index - 1 === boundaryLength)  {
           if (self.partBoundaryFlag) {
             index = 0;
-            if (c === LF) {
+            if (c === LF) { //该数据块结束，开始下一块
               self.partBoundaryFlag = false;
               self.onParsePartEnd();
               self.onParsePartBegin();
