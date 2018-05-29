@@ -315,12 +315,12 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
         if (c === HYPHEN) break; //如果字符是'-',例如Content-Diposition:中间的'-',则继续检测下一个字符的状态
 
         if (c === COLON) { //冒号 这个是解析fileds了 放到header里的
-          if (index === 1) {  //直接就是冒号，则没有field的key
+          if (index === 1) {  //直接就是冒号
             // empty header field
             self.handleError(createError(400, 'Empty header field'));
             return;
           }
-          self.onParseHeaderField(buffer.slice(self.headerFieldMark, i)); //fileds的key，通过刚才的标记和现在的i，拿出key值
+          self.onParseHeaderField(buffer.slice(self.headerFieldMark, i)); //其实拿出了content-dipositon，通过刚才的标记和现在的i，拿出的
           self.headerFieldMark = null;
           state = HEADER_VALUE_START;
           break;
@@ -338,11 +338,11 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
         self.headerValueMark = i;  //标记
         state = HEADER_VALUE;
         /* falls through */
-      case HEADER_VALUE:  //解析fields的value
+      case HEADER_VALUE:  //解析出content-diposition:后面的值
         if (c === CR) { //回车 这个filed结束了，又是一行新的块
-          self.onParseHeaderValue(buffer.slice(self.headerValueMark, i)); //把fileds的value搞出来
+          self.onParseHeaderValue(buffer.slice(self.headerValueMark, i)); //把值搞出来
           self.headerValueMark = null;
-          self.onParseHeaderEnd(); //校验拿到的key是content-disposition的话，则提取出name（k-v的k），如果是文件提取出filename文件名
+          self.onParseHeaderEnd(); //校验拿到的key是content-disposition的话，则从该值中提取出name，如果是文件提取出filename文件名
           state = HEADER_VALUE_ALMOST_DONE;
         }
         break;
@@ -356,11 +356,11 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
         if (err) return self.handleError(err);
         state = PART_DATA_START;
         break;
-      case PART_DATA_START: //开始解析文件部分
+      case PART_DATA_START: //开始解析数据块部分
         state = PART_DATA;
-        self.partDataMark = i; //记录下文件开始部分
+        self.partDataMark = i; //记录下开始部分
         /* falls through */
-      case PART_DATA:  //解析文件部分
+      case PART_DATA:  //解析数据块部分
         prevIndex = index;  //前置index
 
         if (index === 0) {
@@ -374,7 +374,7 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
         }
 
         if (index < boundaryLength) {
-          if (boundary[index] === c) { //该部分文件结束了
+          if (boundary[index] === c) { //该部分数据块结束了
             if (index === 0) {
               self.onParsePartData(buffer.slice(self.partDataMark, i)); //开始写
               self.partDataMark = null;
@@ -472,3 +472,16 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
 };
 ```
 这个流程比较繁琐，我写了详细的注释，如果带着流程去读的话，就能够理解
+
+1. 从content-type中拿出boundary
+2. req流指向到_write方法，这样能拿到每一个buffer
+3. 读到boundary长度时，最后两位遇到\r\n，则表示是一个块的开始，接下里开始解析内容（主要是content-disposition的值）
+4. 通过:号分割解析出field的name对应的值，如果是文件，还会拿到文件名
+5. 遇到\r\n，则开始解析数据块了，先准备好一个passthrough。刚才解析出来的name或者有filename都会存下来（1）如果是文件类型，按照约定路径打开一个文件，并把passthrough绑定到上面。（2）如果是非文件则直接写到passthrough中，passthrough拿到buffer后，按照预定约定的编码decoder成值后，直接作为value，把name value（其实就是k-v）存下来。（3）如果有监听该插件的part，则直接把拿到的buffer给part的处理函数，让用户自己处理。
+6. 数据块其实就两种，fields的value值（k-v的v）或 文件数据。解析数据块的时候，我们只关心起始坐标和结束坐标，直接按照boundary的长度跳坐标（因为如果是文件数据量比较大），跳多了触及到下个boundary了就减回来。然后把起始和结束坐标的这部分数据写到passthrough（passthrough有对应的操作上一步已经解释了），这样就能根据不同情况存到对应的位置。
+7. 文件数据块写完的时候，emit file事件，将文件信息保存到files中。field的value数据块写完后，emit field事件，将name和value值保存在fields中。这样解析出来的fields的信息和files信息都被存了下来。
+8. 这样逐个循环处理，直到遇到boundary--，这就是整个部分结束了，结束解析。
+9. 最后能拿到fields里存的k-v变量，files里存的文件信息了，在emit close事件的时候，传给用户的回调函数
+
+## 总结
+整个流程就像上面解释的那样，建议大家参照我写的注释去理解，其实代码还有很多出错处理，回压（流生产速度超过消费速度）处理，流的一些使用，代码没有全部放上来解释。这个代码里的流的使用还是有很多可以借鉴学习的地方，比如利用passthrough来进行流数据的周转，处理流的回压等，建议大家有时间可以看一下它的代码。
