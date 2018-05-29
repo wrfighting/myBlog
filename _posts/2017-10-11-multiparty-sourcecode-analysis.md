@@ -342,7 +342,7 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
         if (c === CR) { //回车 这个filed结束了，又是一行新的块
           self.onParseHeaderValue(buffer.slice(self.headerValueMark, i)); //把fileds的value搞出来
           self.headerValueMark = null;
-          self.onParseHeaderEnd(); //这是一个处理操作，分情况有三种处理，后面进行解释
+          self.onParseHeaderEnd(); //校验拿到的key是content-disposition的话，则提取出name（k-v的k），如果是文件提取出filename文件名
           state = HEADER_VALUE_ALMOST_DONE;
         }
         break;
