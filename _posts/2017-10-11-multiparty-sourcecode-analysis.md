@@ -352,7 +352,7 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
         break;
       case HEADERS_ALMOST_DONE: //换行结束该fileds
         if (c !== LF) return self.handleError(createError(400, 'Expected LF Received ' + c));
-        var err = self.onParseHeadersEnd(i + 1); //流准备好
+        var err = self.onParseHeadersEnd(i + 1); //流准备好,这个方法如果是文件的话已经暴露好一个流并且绑定到了待写入的目标文件上了，这个方法有很多流的处理值得细说，后面再细讲
         if (err) return self.handleError(err);
         state = PART_DATA_START;
         break;
@@ -446,11 +446,11 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
   }
 
   if (self.headerFieldMark != null) {
-    self.onParseHeaderField(buffer.slice(self.headerFieldMark));
+    self.onParseHeaderField(buffer.slice(self.headerFieldMark)); //写入field的key
     self.headerFieldMark = 0;
   }
   if (self.headerValueMark != null) {
-    self.onParseHeaderValue(buffer.slice(self.headerValueMark));
+    self.onParseHeaderValue(buffer.slice(self.headerValueMark)); //写入field的value
     self.headerValueMark = 0;
   }
   if (self.partDataMark != null) { //往passthrough写东西
@@ -464,10 +464,11 @@ Form.prototype._write = function(buffer, encoding, cb) { //这里的buffer是一
   self.bytesReceived += buffer.length;
   self.emit('progress', self.bytesReceived, self.bytesExpected);
 
-  if (self.backpressure) {
+  if (self.backpressure) {  //如果存在回压，把cb暂存，后续消耗后再调用这些cb
     self.writeCbs.push(cb);
   } else {
     cb();
   }
 };
 ```
+这个流程比较繁琐，我写了详细的注释，如果带着流程去读的话，就能够理解
